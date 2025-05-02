@@ -1,4 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+
 int findValueOfCardDrawn(char cardDeck[52][3], int randomNumber, int valueOfCardDrawn, int valueOfHand) {
+    valueOfCardDrawn = 0;
     if (cardDeck[randomNumber][1] == 'K' || cardDeck[randomNumber][1] == 'Q' || cardDeck[randomNumber][1] == 'J') {
         valueOfCardDrawn = 10;
     }
@@ -76,7 +82,7 @@ void displayCardDrawn(char cardDeck[52][3], int randomNumber, int valueOfCardDra
     }
 }
 
-void blackjackStart(int startingBalance) {
+void blackjackStart(int userBalance) {
 
     char userName[25];
     char userResponse;
@@ -98,7 +104,7 @@ void blackjackStart(int startingBalance) {
     } while (userResponse != 'y' && userResponse != 'Y' && userResponse != 'n' && userResponse != 'N');
 
     if (userResponse == 'y' || userResponse == 'Y') {
-        printf("\nGreat, %s! Let's start you off with $%d\n", userName, startingBalance);
+        printf("\nGreat, %s! Let's start you off with $%d\n", userName, userBalance);
     } else if (userResponse == 'n' || userResponse == 'N') {
         printf("\nNo worries, %s! I'll explain the rules.\n", userName);
 
@@ -126,65 +132,310 @@ void blackjackStart(int startingBalance) {
 
         } while (userYN != 'y' && userYN != 'Y');
 
-        printf("\nGreat, %s! Let's start you off with $%d.\n", userName, startingBalance);
+        printf("\nGreat, %s! Let's start you off with $%d.\n", userName, userBalance);
     }
 }
 
-void chipBreakdown(int chipAmount) {
+void chipBreakdownBalanced(int chipCounts[], int chipValues[], int chipAmount) {
 
-    int chipValues[] = {100, 50, 25, 5, 1};
-    int chipCount;
+    int chipsRemaining = chipAmount;
 
-    printf("\n>>> CHIP BREAKDOWN <<<\n");
-    for (int i = 0; i < 5; i++) {
-        chipCount = chipAmount / chipValues[i];
-        chipAmount %= chipValues[i];
-        if (chipCount > 0) {
-            printf("- %d x $%d chip(s)\n", chipCount, chipValues[i]);
+    if (chipsRemaining >= 100) { // Checks if at least $100 remains
+        chipCounts[0] += 1;      // Add on $100 chip
+        chipsRemaining -= 100;   // Subtract $100 from remaining chips
+    }
+    if (chipsRemaining >= 100) { // Check if another $100 remains
+        chipCounts[1] += 2;      // Add 2 $50 chips
+        chipsRemaining -= 100;   // Subtracts $100 from remaining chips
+    }
+    if (chipsRemaining >= 50) {  // Check if at least $50 remains
+        chipCounts[2] += 2;      // Add two $50 chips
+        chipsRemaining -= 50;    // Subtracts $50 from remaining chips
+    }
+    if (chipsRemaining >= 25) { // Checks if at least $25 remains
+        chipCounts[3] += 4;     // Add 4 $5 chips
+        chipsRemaining -= 20;   // Subtract $20 from remaining chips
+    }
+    if (chipsRemaining >= 10) { // Check if at least $10 remains
+        chipCounts[4] += 5;     // Add 5 $1 chips
+        chipsRemaining -= 5;    // Subtract $5 from remaining chips
+    }
+
+    // Sweep to allocate any remaining money across the denominations of chips
+    for (int i = 0; i < 5; i++) {                           // Loops over the 5 demoninations of chips
+        chipCounts[i] += chipsRemaining / chipValues[i];    // Add as many full chips as possible
+        chipsRemaining %= chipValues[i];                    // Updates remainder after dividing
+    }
+}
+
+void chipBreakdown(int chipCounts[], int chipValues[]) {
+
+    printf("\n>>> CHIP STACK <<<\n");   // Header label
+    int chipTotals = 0;                 // Running total value
+    for (int i = 0; i < 5; i++) {       // Loop over each chip type
+        if (chipCounts[i] > 0) {        // If player has at least one of this chip
+            int chipTotal = chipCounts[i] * chipValues[i];  // Total value of this chip type
+            printf("- %d x $%d chip(s) -> $%d total\n", chipCounts[i], chipValues[i], chipTotal); // Display count and value of each chip type
+            chipTotals += chipTotal; // Add overall total of each chip denomination
         }
     }
+    printf("Total chip value: $%d\n", chipTotals); // Displays the final total of all chips added up
 }
 
-void blackjackBetting(int *userBalance, int *gameRound) {
+int bettingSystem(int *userBalance, int *gameRound) {
 
+    int chipValues[] = {100, 50, 25, 5, 1}; // Array of the chip denominations
+    int chipCounts[5] = {0};    // Array of holding player's chip counts, initialized to zero
+    int chipBets[5] = {0};      // Array holding current bets, initialized to zero
+    int gameOutcome;            // Results of the game round
+    char confirmBet;            // Player input to confirm or cancel bet after entering it
     int userBet;
-    int gameOutcome;
-    char continueGame;
 
-    //printf("You now have $%d in your balance.\n", userBalance);
-
-    while (*userBalance > 0) {
-        printf("\nROUND %d:\n", *gameRound);
-
-        if (gameRound > 1) {
-            printf("Your current balance is: $%d\n\n", *userBalance);
+    while (1) {
+        for (int i = 0; i < 5; i++){
+            chipCounts[i] = 0;
         }
 
-        printf("Enter your bet here:\n");
-        printf(">>>> ");
-        if (scanf("%d", &userBet) != 1) {
-            while (getchar() != '\n');
-            printf("\nInvalid bet. Please enter an amount between $1 and $%d.\n", *userBalance);
-            continue;
-        }
-        while (getchar() != '\n');
+        chipBreakdownBalanced(chipCounts, chipValues, *userBalance);
+        printf("\nYou now have $%d in your chip stack.\n", *userBalance);
 
-        if (userBet > *userBalance || userBet <= 0) {
-            printf("\nInvalid bet. Please enter an amount between $1 and $%d.\n", *userBalance);
-            continue;
-        }
-
-
-        if (*userBalance > 0) {
-            *userBalance -= userBet;
-            *gameRound++;
+        int totalChips = 0;
+        for (int i = 0; i < 5; i++) totalChips += chipCounts[i];
+        if (totalChips == 0) {
+            printf("\nYou're out of chips! Game over.\n");
             break;
         }
+
+        printf("\nROUND %d:", *gameRound);
+        chipBreakdown(chipCounts, chipValues);
+
+        printf("\nEnter how many chips you want to bet for each denomination:\n");
+        for (int i = 0; i < 5; i++) {
+            printf("$%d chips (You have %d): ", chipValues[i], chipCounts[i]);
+            if (scanf("%d", &chipBets[i]) != 1 || chipBets[i] < 0 || chipBets[i] > chipCounts[i]) {
+                while (getchar() != '\n');
+                printf("\nInvalid. Enter a number between 0 and %d.\n\n", chipCounts[i]);
+                i--;
+                continue;
+            }
+            while (getchar() != '\n');
+        }
+
+        userBet = 0;
+        for (int i = 0; i < 5; i++) {
+            userBet += chipBets[i] * chipValues[i];
+            chipCounts[i] -= chipBets[i];
+        }
+
+        if (userBet <= 0) {
+            printf("\nYou must bet at least one chip.\n");
+            continue;
+        }
+
+        printf("\nYou are about to bet $%d this round, do you want to proceed? (Y to confirm / N to re-enter)\n", userBet);
+        printf(">>>> ");
+        scanf(" %c", &confirmBet);
+        while (getchar() != '\n');
+
+        if (confirmBet == 'n' || confirmBet == 'N') {
+            for (int i = 0; i < 5; i++){
+                chipCounts[i] += chipBets[i];
+                chipBets[i] = 0;
+            }
+            continue;
+        }
+        printf("\nYou have bet $%d this round.\n", userBet);
+
+        *userBalance -= userBet;
+        printf("You have bet $%d.  New balance: $%d\n\n", userBet, *userBalance);
+        (*gameRound)++;
+        break;
     }
+    return userBet;
 }
 
-void dealCards(char cardDeck[52][3], int index){
+int deckShuffleChar(char cardDeck[][3], int deckSize){
+
+    char temp[3];
+
+        for(int j = 0; j < ((rand() % 4) + 5); j++){
+            for(int i = 0; i < (deckSize); i++){
+                    int x = rand() % (deckSize);
+
+                    strcpy(temp, cardDeck[i]);
+                    strcpy(cardDeck[i], cardDeck[x]);
+                    strcpy(cardDeck[x], temp);
+
+            } // end for i
+        } // end for j
+
+// debugging <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    printf("\n\n%d\n\n", deckSize);
+
+    for (int i = 0; i < deckSize; i++) {
+        printf("%s ", cardDeck[i]);
+        //Sleep(50);
+    } // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+return(1);
+}
+
+int hit(char cardDeck[52][3], int *index, int *valueOfHand) {
+
+    int valueOfCardDrawn = 0;
+    valueOfCardDrawn = findValueOfCardDrawn(cardDeck, *index, valueOfCardDrawn, *valueOfHand);
+    displayCardDrawn(cardDeck, *index, valueOfCardDrawn);
+    //Calculates value of card drawn and assigns it to variable valueOfCardDrawn and then adds it to the value of the hand
+    *valueOfHand += valueOfCardDrawn;
+    printf("Value of your hand: %d\n", *valueOfHand);
+    (*index)++;
+
+    return valueOfCardDrawn;
+
 
 
 
 }
+/*
+void dealCards(char cardDeck[52][3], int *index){
+    valueOfCardDrawn = 0;
+
+    valueOfCardDrawn = findValueOfCardDrawn();
+
+
+
+    for (; *index < 4; (*index)++) {  // Correctly modifying *index
+        if (*index == 0 || *index == 2) {
+            *valueOfCardDrawn = findValueOfCardDrawn(cardDeck, *index, *valueOfCardDrawn, *playerValueOfHand);
+            *playerValueOfHand += *valueOfCardDrawn;
+            displayCardDrawn(cardDeck, *index, *valueOfCardDrawn); // Fixed missing parenthesis
+            //printf("\nValue of  player Hand: %d\n", *playerValueOfHand);  // Added newline
+        }
+        else if (*index == 1) {
+            *valueOfCardDrawn = findValueOfCardDrawn(cardDeck, *index, *valueOfCardDrawn, *dealerValueOfHand);
+            *dealerVisibleCardValue += *valueOfCardDrawn;
+            printf("\nYou notice the dealer has drawn a card of value %d\n", *dealerVisibleCardValue);
+
+        }
+        else if (*index == 3) {
+            *valueOfCardDrawn = findValueOfCardDrawn(cardDeck, *index, *valueOfCardDrawn, *dealerValueOfHand);
+            *dealerNonVisibleCardValue += *valueOfCardDrawn;
+            printf("\nDealers non-visible card: %d\n", *dealerNonVisibleCardValue);
+        }
+        *dealerValueOfHand = *dealerNonVisibleCardValue + *dealerVisibleCardValue;
+    }
+
+}
+*/
+
+int playerDecision(int numPlayCards, int playCard1Val, int playCard2Val, char *playChoice, int playBal, int playBet){
+    int incorrect = 1; // initialize incorrect to 1 to enter the while loop
+    int numOptions = 2; // initialize to 2 because that's the number of options available
+
+        while(incorrect){
+        printf("Would you like to : Hit (H) Stand (s)"); // prompt user for hit or stand
+        if((numPlayCards == 2) && (playBal >= playBet)){
+            printf(" Double (D)"); // prompt user for double if conditions are met
+            numOptions = 3; // set numOptions to 3
+
+        }
+        if((numPlayCards == 2) && (playCard1Val == playCard2Val)){
+            printf(" Split (B)"); // prompt user with split if conditions met
+            if(numOptions = 3){
+                numOptions = 5; // set numOptions to 5 because can't use 4 as it's used below
+            }
+            else {
+                numOptions = 4; // set numOptions to 4 as 3 is already taken
+            }
+
+        }
+        printf(" >>>>> "); // print where the user should input their choice
+
+        scanf(" %c", &*playChoice); // scan user input to playChoice
+        printf("\n"); // print a new line
+         if((*playChoice == 'D') || (*playChoice == 'd')){
+            if((numOptions == 3) || (numOptions == 5)){
+                incorrect = 0; // set incorrect to 0 if conditions above met
+                break;// break out of while loop
+            }
+            else {
+                printf("ERROR--Invalid Input\n\n"); // print error statement
+
+                continue; // run through while loop again
+            }
+        }
+
+        else if((*playChoice == 'B') || (*playChoice == 'b')){
+                if((numOptions == 4) || (numOptions == 5)){
+                    incorrect = 0;
+                    break;
+                }
+                else {
+                    printf("ERROR--Invalid Input\n\n"); // print error statement
+
+                    continue; // run through while loop again
+                }
+        }
+        else if((*playChoice == 'H') || (*playChoice == 'h')){
+                incorrect = 0; // set incorrect to 0 to exit the loop
+        }
+        else if((*playChoice == 'S') || (*playChoice == 's')){
+                incorrect = 0; // set incorrect to 0 to exit the loop
+        }
+        else{
+            printf("ERROR--Invalid Input\n\n"); // print error statement
+            continue; // run through while loop again
+        }
+
+
+
+    }
+
+return(1); // return 1 on success
+}
+
+
+int stand (void) {
+
+ int dealerCardVisible = 11;
+ int dealerCardValue = dealerCardVisible + 10;
+ int playerCardValue = 20;
+
+ char standChoice;
+
+    printpoint:
+    printf("You have %d, dealers visible card is %d, do you want to stand? (y/n)\n", playerCardValue, dealerCardVisible);
+    scanf(" %c", &standChoice);
+    if ((standChoice == 'y') || (standChoice == 'Y')){
+        printf("You stand. now counting cards\n\n");
+        //resolution(playerCardValue, dealerCardValue); // replace with return -2
+        }
+     else if ((standChoice == 'n') || (standChoice == 'N') ){
+      printf("Make your next choice\n");
+      goto printpoint;
+    }
+     else{
+        printf("Invalid input. type Y/N\n");
+        goto printpoint;
+    }
+
+return 0;
+
+}
+
+int doubles (void) {
+
+ int chipsPot = 200;
+
+    printf("Double selected\n");
+    chipsPot += chipsPot;
+    printf("Bet doubled to %d, drawing final card", chipsPot);
+        // card drawing logic
+
+return 0;
+
+}
+
+
+
+
+
